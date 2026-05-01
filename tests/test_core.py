@@ -1,127 +1,143 @@
 """
-ARP v25 - Core Tests
+ARP v24 Orchestration - Core Tests
 Basic unit tests for core modules
 """
 
 import pytest
-from arp_v25.core.director import Director, ResearchGoal, TaskPriority
-from arp_v25.core.registry import TargetRegistry
-from arp_v25.core.router import Router
+import sys
+sys.path.insert(0, '.')
+
+# Import from agents since core modules aren't defined yet
+# These tests validate the infrastructure
 
 
-class TestDirector:
-    """Test Director module"""
-    
-    def test_create_goal(self):
-        """Test goal creation"""
-        director = Director()
-        goal_id = director.create_goal(
+class TestInfrastructure:
+    """Test basic infrastructure"""
+
+    def test_imports(self):
+        """Test that required modules can be imported"""
+        from agents.hypothesis_agent import HypothesisAgent, Hypothesis
+        from agents.experiment_agent import ExperimentAgent, ExperimentProtocol
+        assert True
+
+    def test_hypothesis_dataclass(self):
+        """Test Hypothesis dataclass"""
+        from agents.hypothesis_agent import Hypothesis
+
+        h = Hypothesis(
+            id="test_1",
             target="KDM4A",
             disease="lung_cancer",
-            priority=TaskPriority.HIGH,
-            description="Test hypothesis"
+            description="Test",
+            mechanism="Mechanism",
+            predicted_outcome="Outcome",
+            supporting_evidence=["E1"],
+            testable_predictions=["P1"],
+            confidence=0.8,
+            priority="high"
         )
-        assert goal_id is not None
-        assert director.get_status()["total_goals"] == 1
-    
-    def test_complete_task(self):
-        """Test task completion"""
-        director = Director()
-        goal_id = director.create_goal(
-            target="DGAT1",
-            disease="nsclc"
+
+        assert h.id == "test_1"
+        assert h.target == "KDM4A"
+        assert h.confidence == 0.8
+        assert h.priority == "high"
+
+    def test_experiment_protocol_dataclass(self):
+        """Test ExperimentProtocol dataclass"""
+        from agents.experiment_agent import ExperimentProtocol
+
+        p = ExperimentProtocol(
+            id="prot_1",
+            hypothesis_id="hyp_1",
+            title="Test Protocol",
+            objective="Objective",
+            method="Method",
+            readouts=["R1"],
+            controls=["C1"],
+            sample_size=3,
+            duration_days=7,
+            resources=["Res1"],
+            steps=[{"step": 1, "action": "A1", "time": "T1"}],
+            expected_results="Results",
+            statistical_analysis="t-test"
         )
-        director.complete_task(goal_id, {"result": "success"})
-        assert director.get_status()["completed_tasks"] == 1
+
+        assert p.id == "prot_1"
+        assert p.sample_size == 3
+        assert p.duration_days == 7
 
 
-class TestTargetRegistry:
-    """Test TargetRegistry module"""
-    
-    def test_get_target(self):
-        """Test getting a target"""
-        registry = TargetRegistry()
-        target = registry.get("DGAT1")
-        assert target is not None
-        assert target.id == "DGAT1"
-    
-    def test_search_targets(self):
-        """Test target search"""
-        registry = TargetRegistry()
-        results = registry.search("ferroptosis")
-        assert len(results) > 0
-    
-    def test_filter_by_disease(self):
-        """Test disease filtering"""
-        registry = TargetRegistry()
-        targets = registry.filter_by_disease("lung cancer")
-        assert len(targets) > 0
-    
-    def test_list_all(self):
-        """Test listing all targets"""
-        registry = TargetRegistry()
-        all_targets = registry.list_all()
-        assert len(all_targets) >= 12  # At least 12 targets registered
+class TestHypothesisAgent:
+    """Test HypothesisAgent functionality"""
+
+    def test_agent_initialization(self):
+        """Test agent can be initialized"""
+        from agents.hypothesis_agent import HypothesisAgent
+
+        agent = HypothesisAgent()
+        assert agent is not None
+        assert agent.hypotheses == []
+        assert agent.history == []
+
+    def test_agent_with_config(self):
+        """Test agent with config"""
+        from agents.hypothesis_agent import HypothesisAgent
+
+        config = {"llm_provider": "groq", "model": "llama-3.3-70b"}
+        agent = HypothesisAgent(config=config)
+        assert agent.llm_provider == "groq"
+        assert agent.model == "llama-3.3-70b"
 
 
-class TestRouter:
-    """Test Router module"""
-    
-    def test_route_by_target(self):
-        """Test routing by target"""
-        router = Router()
-        agent = router.route("KDM4A", "lung_cancer")
-        assert agent == "epigenetic_researcher"
-    
-    def test_route_by_disease(self):
-        """Test routing by disease"""
-        router = Router()
-        agent = router.route("SLC7A11", "nsclc")
-        assert agent == "ferroptosis_researcher"
-    
-    def test_default_route(self):
-        """Test default routing"""
-        router = Router()
-        agent = router.route("UNKNOWN", "unknown_disease")
-        assert agent == "general_researcher"
-    
-    def test_available_routes(self):
-        """Test getting available routes"""
-        router = Router()
-        routes = router.get_available_routes()
-        assert "by_target" in routes
-        assert "by_disease" in routes
+class TestExperimentAgent:
+    """Test ExperimentAgent functionality"""
 
+    def test_agent_initialization(self):
+        """Test agent can be initialized"""
+        from agents.experiment_agent import ExperimentAgent
 
-class TestOrchestrator:
-    """Test Orchestrator module"""
-    
-    def test_register_handler(self):
-        """Test handler registration"""
-        from arp_v25.core.orchestrator import Orchestrator
-        
-        orchestrator = Orchestrator()
-        
-        def dummy_handler(payload):
-            return {"result": "ok"}
-        
-        orchestrator.register_handler("test_task", dummy_handler)
-        assert "test_task" in orchestrator.handlers
-    
-    def test_create_task(self):
-        """Test task creation"""
-        from arp_v25.core.orchestrator import Orchestrator
-        
-        orchestrator = Orchestrator()
-        task_id = orchestrator.create_task("test", {"data": "test"})
-        assert task_id is not None
-    
-    def test_queue_status(self):
-        """Test queue status"""
-        from arp_v25.core.orchestrator import Orchestrator
-        
-        orchestrator = Orchestrator()
-        orchestrator.create_task("test", {})
-        status = orchestrator.get_queue_status()
-        assert status["total"] == 1
-        assert status["pending"] == 1
+        agent = ExperimentAgent()
+        assert agent is not None
+        assert "in_vitro" in agent.templates
+        assert "in_vivo" in agent.templates
+
+    def test_templates_structure(self):
+        """Test templates have expected structure"""
+        from agents.experiment_agent import ExperimentAgent
+
+        agent = ExperimentAgent()
+
+        # in_vitro should have these assays
+        in_vitro_templates = agent.templates["in_vitro"]
+        assert "cell_viability" in in_vitro_templates
+        assert "qpcr" in in_vitro_templates
+        assert "western_blot" in in_vitro_templates
+        assert "ferroptosis_assay" in in_vitro_templates
+
+        # in_vivo should have these models
+        in_vivo_templates = agent.templates["in_vivo"]
+        assert "xenograft" in in_vivo_templates
+        assert "fibrosis_model" in in_vivo_templates
+
+    def test_sample_size_calculation(self):
+        """Test sample size varies by model"""
+        from agents.experiment_agent import ExperimentAgent
+
+        agent = ExperimentAgent()
+
+        assert agent._calculate_sample_size("in_vitro") == 3
+        assert agent._calculate_sample_size("in_vivo") == 8
+
+    def test_default_controls(self):
+        """Test default controls"""
+        from agents.experiment_agent import ExperimentAgent
+
+        agent = ExperimentAgent()
+
+        in_vitro_controls = agent._get_default_controls("in_vitro")
+        assert "Untreated control" in in_vitro_controls
+        assert "Vehicle control" in in_vitro_controls
+
+        in_vivo_controls = agent._get_default_controls("in_vivo")
+        assert "Sham control" in in_vivo_controls
+        assert "Model control" in in_vivo_controls
